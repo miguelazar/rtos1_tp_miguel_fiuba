@@ -18,11 +18,13 @@
 /*==================[definiciones y macros]==================================*/
 #define TIEMPO_BLINK_LED_AZUL 200
 /*==================[definiciones de datos internos]=========================*/
+
 //typedef struct sensor_t sensor_t;
 typedef struct {
 	uint16_t medicion_tem;
 	uint16_t medicion_hum;
 }sensor_t;
+
 /*==================[definiciones de datos externos]=========================*/
 
 DEBUG_PRINT_ENABLE;
@@ -62,22 +64,18 @@ char* itoa(int value, char* result, int base) {
 // Prototipo de funcion de la tarea
 void tarea_lcd( void* pvParameters);
 void tarea_tem(void * pvParameters);
-//void tarea_hum(void * pvParameters);
+
 static void tarea_led(void* pvParameters);
-//uint16_t leer_temperatura();
-//void leer_temperatura(void *pvParameter);
+
 void leer_temperatura(sensor_t *param);
-//uint16_t leer_humedad();
-//float leer_temperatura();
 
 
+// Creacion de la cola
 QueueHandle_t queue_datos;
 
 //Mutex para imprimir
-
 SemaphoreHandle_t Mutex_print;
 
-//QueueHandle_t queue_hum;
 
 /*==================[funcion principal]======================================*/
 
@@ -98,63 +96,62 @@ int main( void )
     adcConfig(ADC_ENABLE); // ADC
 
     // Crear cola en freeRTOS
-    //queue_datos = xQueueCreate(3, sizeof(float));
-    //queue_datos = xQueueCreate(5, sizeof(uint16_t));
     queue_datos = xQueueCreate(5, sizeof(sensor_t));
     if (queue_datos == NULL) {
         debugPrintlnString("La cola no puede ser creada");
     }
-/*    queue_hum = xQueueCreate(5, sizeof(uint16_t));
-    if (queue_hum == NULL) {
-        debugPrintlnString("La cola no puede ser creada");
-    }*/
+
 
     Mutex_print = xSemaphoreCreateMutex();
 
     // Crear tareas en freeRTOS
-    
+    BaseType_t xReturned;
     // Creacion de la tarea que imprime en el LCD
-    xTaskCreate(
-    	tarea_lcd,                     	// Funcion de la tarea a ejecutar
-		//( const char * )
-		"TAREA LCD",   					// Nombre de la tarea como String amigable para el usuario
-		configMINIMAL_STACK_SIZE*2, 	// Cantidad de stack de la tarea, se puede usar tambien 200
-		0,                          	// Parametros de tarea, se puede usar NULL
-		tskIDLE_PRIORITY+1,         	// Prioridad de la tarea -> Queremos que este un nivel encima de IDLE, se puede usar 1
-		0                          		// Puntero a la tarea creada en el sistema, se puede usar NULL
-    );
+    xReturned = xTaskCreate(
+    				tarea_lcd,                     	// Funcion de la tarea a ejecutar
+					//( const char * )
+					"TAREA LCD",   					// Nombre de la tarea como String amigable para el usuario
+					configMINIMAL_STACK_SIZE*2, 	// Cantidad de stack de la tarea, se puede usar tambien 200
+					0,                          	// Parametros de tarea, se puede usar NULL
+					tskIDLE_PRIORITY+1,         	// Prioridad de la tarea -> Queremos que este un nivel encima de IDLE, se puede usar 1
+					0                          		// Puntero a la tarea creada en el sistema, se puede usar NULL
+    			);
+    if( xReturned != pdPASS )
+    {
+        // La tarea no fue creada
+        while(1);
+    }
 
     // Creacion de la tarea que realiza lectura de temperatura
-    xTaskCreate(
-        tarea_tem,                    	 // Funcion de la tarea a ejecutar
-        //( const char * )
-		"TAREA TEMPERATURA",   			// Nombre de la tarea como String amigable para el usuario
-        configMINIMAL_STACK_SIZE*2, 	// Cantidad de stack de la tarea, se puede usar tambien 200
-        0,                          	// Parametros de tarea, se puede usar NULL
-        tskIDLE_PRIORITY+1,         	// Prioridad de la tarea -> Queremos que este un nivel encima de IDLE, se puede usar 1
-        0                          		// Puntero a la tarea creada en el sistema, se puede usar NULL
-    );
-    
-    // Creacion de la tarea que realiza lectura de humedad
-/*    xTaskCreate(
-        tarea_hum,                    	 // Funcion de la tarea a ejecutar
-        //( const char * )
-		"TAREA HUMEDAD",   			// Nombre de la tarea como String amigable para el usuario
-        configMINIMAL_STACK_SIZE*2, 	// Cantidad de stack de la tarea, se puede usar tambien 200
-        0,                          	// Parametros de tarea, se puede usar NULL
-        tskIDLE_PRIORITY+1,         	// Prioridad de la tarea -> Queremos que este un nivel encima de IDLE, se puede usar 1
-        0                          		// Puntero a la tarea creada en el sistema, se puede usar NULL
-    );*/
+    xReturned = xTaskCreate(
+    			tarea_tem,                    	 // Funcion de la tarea a ejecutar
+				//( const char * )
+				"TAREA TEMPERATURA",   			// Nombre de la tarea como String amigable para el usuario
+				configMINIMAL_STACK_SIZE*2, 	// Cantidad de stack de la tarea, se puede usar tambien 200
+				0,                          	// Parametros de tarea, se puede usar NULL
+				tskIDLE_PRIORITY+1,         	// Prioridad de la tarea -> Queremos que este un nivel encima de IDLE, se puede usar 1
+				0                          		// Puntero a la tarea creada en el sistema, se puede usar NULL
+    			);
+    if( xReturned != pdPASS )
+    {
+        // La tarea no fue creada
+        while(1);
+    }
 
     // Creacion de la tarea que mantiene un led indicador de funcionamiento
-    xTaskCreate(
-        tarea_led,                     // Funcion de la tarea a ejecutar
-        ( const char * )"TAREA LED",   	// Nombre de la tarea como String amigable para el usuario
-        configMINIMAL_STACK_SIZE, 	// Cantidad de stack de la tarea, se puede usar tambien 200
-        0,                          	// Parametros de tarea, se puede usar NULL
-        tskIDLE_PRIORITY+1,         	// Prioridad de la tarea -> Queremos que este un nivel encima de IDLE, se puede usar 1
-        0                          		// Puntero a la tarea creada en el sistema, se puede usar NULL
-    );
+    xReturned = xTaskCreate(
+    				tarea_led,                     // Funcion de la tarea a ejecutar
+					( const char * )"TAREA LED",   	// Nombre de la tarea como String amigable para el usuario
+					configMINIMAL_STACK_SIZE, 	// Cantidad de stack de la tarea, se puede usar tambien 200
+					0,                          	// Parametros de tarea, se puede usar NULL
+					tskIDLE_PRIORITY+1,         	// Prioridad de la tarea -> Queremos que este un nivel encima de IDLE, se puede usar 1
+					0                          		// Puntero a la tarea creada en el sistema, se puede usar NULL
+    			);
+    if( xReturned != pdPASS )
+    {
+        // La tarea no fue creada
+        while(1);
+    }
     
     // Iniciar scheduler
     vTaskStartScheduler(); // Enciende tick | Crea idle y pone en ready | Evalua las tareas creadas | Prioridad mas alta pasa a running
@@ -198,23 +195,7 @@ void tarea_tem(void * pvParameters) {
     }
 }
 
-//-----------------------------------------------------------
-//---------------------- H U M ------------------------------
-//-----------------------------------------------------------
-// Implementacion de funcion de la tarea
-/*void tarea_hum(void * pvParameters) {
 
-    // ---------- CONFIGURACIONES ------------------------------
-    uint16_t humedad_actual;
-    //float temperatura_actual;
-
-    // ---------- REPETIR POR SIEMPRE --------------------------
-    while(1) {
-        humedad_actual = leer_humedad();
-        xQueueSend(queue_hum, &humedad_actual, portMAX_DELAY);
-        vTaskDelay(pdMS_TO_TICKS(1000));
-    }
-}*/
 
 //-----------------------------------------------------------
 //------------------------ L C D ----------------------------
@@ -228,11 +209,9 @@ void tarea_lcd( void* pvParameters)
 	const TickType_t xDelay750ms = pdMS_TO_TICKS( 750UL );
 	xLastWakeTime = xTaskGetTickCount();
 	TickType_t xPeriodicity =  900/portTICK_RATE_MS;
-    //uint16_t temperatura;
-    //uint16_t humedad;
+
 	sensor_t temperatura;
-    //float temperatura;
-    //char buffer[20];
+
     static char buffer[20];
 
     i2cInit(I2C0, 100000); 	// Inicialización del protocolo
@@ -266,21 +245,6 @@ void tarea_lcd( void* pvParameters)
         	vTaskDelayUntil( &xLastWakeTime, xDelay750ms );
         }
 
-        /*if (xQueueReceive(queue_hum, &humedad, portMAX_DELAY) == pdPASS) {
-        	//lcdClear();
-            lcdGoToXY(0, 1); // Poner cursor en 0, 0
-            lcdSendStringRaw("Hum: ");
-        	//sprintf(buffer,"%3.2f",temperatura);
-            lcdGoToXY(1, 7);
-            itoa( humedad, buffer, 10 );
-            lcdSendStringRaw(buffer);
-            //lcdSendStringRaw("hola");
-            vPrintStringAndNumber("Temperatura = ", temperatura);
-        }
-            else{
-            	vPrintStringAndNumber("No hay datos para mostrar \r\n ", temperatura);
-
-        }*/
     }
 }
 
@@ -313,32 +277,11 @@ static void tarea_led( void * pvParameters )
 //-----------------------------------------------------------
 // Funcion para la lectura del sensor de temperatura
 void leer_temperatura(sensor_t *param) {
-	//sensor_t sensor;
-	//sensor.medicion_tem = 0;
-	//sensor.medicion_hum = 0;
-
-	//char valortemp[1]={0};
-	//	char valorhum[1]={0};
-    // Variable para almacenar el valor leido del ADC CH1
-    //uint16_t data;
 
     // Leo la Entrada Analogica AI0 - ADC0 CH1
 	param->medicion_tem = adcRead(CH1);
 	param->medicion_hum = adcRead(CH2);
 }
 
-//-----------------------------------------------------------
-//---------------- S E N S O R    H U M ---------------------
-//-----------------------------------------------------------
-// Funcion para la lectura del sensor de temperatura
-/*uint16_t leer_humedad() {
 
-    // Variable para almacenar el valor leido del ADC CH2
-    uint16_t data;
-
-    // Leo la Entrada Analogica AI0 - ADC0 CH2
-    data = adcRead(CH2);
-
-    return data;
-}*/
 /*==================[fin del archivo]========================================*/
